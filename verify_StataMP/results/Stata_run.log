@@ -1,0 +1,724 @@
+-------------------------------------------------------------------------------
+      name:  <unnamed>
+       log:  results/Stata_run.log
+  log type:  text
+ opened on:  24 Sep 2026, 20:09:53
+
+. 
+. * ── import (only the items needed) ─────────────────────────────────────────
+> ──────────────────────────
+. local keep NACCID NACCADC PACKET NACCVNUM NACCFDYS NACCAGE NACCDAGE SEX EDUC 
+> NACCNE4S CDRSUM CDRGLOB NACCMMSE ///
+>     NPTHAL NACCBRAA NACCNEUR NPADNC NACCLEWY NPTDPB NPTDPC NPTDPD NPTDPE NPFT
+> DTDP NPFTDTAU NPHIPSCL NPINF NACCARTE NACCINT
+
+. import delimited using "`RAW'", varnames(1) case(preserve) clear
+(encoding automatically selected: ISO-8859-1)
+(1,936 vars, 207,454 obs)
+
+. keep `keep'
+
+. foreach v of local keep {
+  2.     if !inlist("`v'", "NACCID", "PACKET") capture destring `v', replace fo
+> rce
+  3. }
+
+. compress
+  (0 bytes saved)
+
+. save data/raw_subset.dta, replace
+file data/raw_subset.dta saved
+
+. 
+. * valid-range helper: gen new = old if inrange(old, lo, hi)
+. capture program drop vr
+
+. program define vr
+  1.     args new old lo hi
+  2.     gen double `new' = `old' if inrange(`old', `lo', `hi') & !missing(`old
+> ')
+  3. end
+
+. 
+. * ── neuropathology: last record with any core item ─────────────────────────
+> ───────────────────────────
+. vr braak NACCBRAA 0 6
+(169,880 missing values generated)
+
+. vr cerad NACCNEUR 0 3
+(169,239 missing values generated)
+
+. vr thal NPTHAL 0 5
+(178,062 missing values generated)
+
+. vr adrep NPADNC 0 3
+(178,410 missing values generated)
+
+. vr lewy NACCLEWY 0 4
+(169,317 missing values generated)
+
+. vr ftd NPFTDTDP 0 1
+(181,669 missing values generated)
+
+. vr tau NPFTDTAU 0 1
+(178,236 missing values generated)
+
+. vr tB NPTDPB 0 1
+(185,392 missing values generated)
+
+. vr tC NPTDPC 0 1
+(183,854 missing values generated)
+
+. vr tD NPTDPD 0 1
+(186,773 missing values generated)
+
+. vr tE NPTDPE 0 1
+(185,667 missing values generated)
+
+. vr hs NPHIPSCL 0 3
+(178,371 missing values generated)
+
+. vr inf NPINF 0 1
+(178,011 missing values generated)
+
+. vr art NACCARTE 0 3
+(172,157 missing values generated)
+
+. vr age_death NACCDAGE 18 120
+(145,280 missing values generated)
+
+. vr naccint NACCINT 0 600
+(146,051 missing values generated)
+
+. keep if !missing(braak) | !missing(cerad) | !missing(lewy) | !missing(adrep)
+(169,161 observations deleted)
+
+. sort NACCID NACCVNUM
+
+. by NACCID: keep if _n == _N
+(29,728 observations deleted)
+
+. recode thal (0=0) (1 2=1) (3=2) (4 5=3), gen(A)
+(4,137 differences between thal and A)
+
+. recode braak (0=0) (1 2=1) (3 4=2) (5 6=3), gen(B)
+(7,204 differences between braak and B)
+
+. gen double C = cerad
+(33 missing values generated)
+
+. gen double abc = .
+(8,565 missing values generated)
+
+. local ok !missing(A) & !missing(B) & !missing(C)
+
+. replace abc = 0 if `ok' & A == 0 & C == 0
+(693 real changes made)
+
+. replace abc = 1 if `ok' & A >= 1 & B <= 1
+(715 real changes made)
+
+. replace abc = 1 if `ok' & A == 1 & B >= 2 & C <= 1
+(233 real changes made)
+
+. replace abc = 2 if `ok' & A == 1 & B >= 2 & C >= 2
+(106 real changes made)
+
+. replace abc = 2 if `ok' & A >= 2 & B >= 2
+(3,462 real changes made)
+
+. replace abc = 3 if `ok' & A == 3 & B == 3 & C >= 2
+(2,444 real changes made)
+
+. gen double ADNC = cond(!missing(adrep), adrep, abc)
+(3,311 missing values generated)
+
+. gen double LB_stage = lewy if lewy <= 3 & !missing(lewy)
+(325 missing values generated)
+
+. gen tdp_n = !missing(tB) + !missing(tC) + !missing(tD) + !missing(tE)
+
+. gen anypos = tB == 1 | tC == 1 | tD == 1 | tE == 1
+
+. gen allneg = tB == 0 & tC == 0 & tD == 0 & tE == 0
+
+. gen double p_TDP = .
+(8,565 missing values generated)
+
+. replace p_TDP = 0 if allneg & ftd == 0
+(1,841 real changes made)
+
+. replace p_TDP = 1 if anypos | ftd == 1
+(1,716 real changes made)
+
+. gen double LATE_stage = .
+(8,565 missing values generated)
+
+. replace LATE_stage = cond(tE == 1, 3, cond(tC == 1 | tD == 1, 2, cond(tB == 1
+> , 1, 0))) if tdp_n == 4 & ftd == 0
+(2,858 real changes made)
+
+. gen double FTLD_TDP = ftd
+(3,919 missing values generated)
+
+. gen double p_FTLDtau = tau
+(3,257 missing values generated)
+
+. gen double p_ADNC = (ADNC >= 2) if !missing(ADNC)
+(3,311 missing values generated)
+
+. gen double p_LBD = (LB_stage >= 2) if !missing(LB_stage)
+(325 missing values generated)
+
+. gen n_assessed = !missing(p_ADNC) + !missing(p_LBD) + !missing(p_TDP) + !miss
+> ing(p_FTLDtau)
+
+. gen double copath_count = p_ADNC + p_LBD + p_TDP + p_FTLDtau if n_assessed ==
+>  4
+(5,174 missing values generated)
+
+. gen double HS = (hs > 0) if !missing(hs)
+(3,293 missing values generated)
+
+. gen double CVD_any = .
+(8,565 missing values generated)
+
+. replace CVD_any = 0 if inf == 0 & art < 2 & !missing(art)
+(2,415 real changes made)
+
+. replace CVD_any = 1 if inf == 1 | (art >= 2 & !missing(art))
+(3,822 real changes made)
+
+. rename (A B C braak) (A_score B_score C_score braak_stage)
+
+. keep NACCID ADNC LB_stage LATE_stage FTLD_TDP p_ADNC p_LBD p_TDP p_FTLDtau n_
+> assessed copath_count HS CVD_any ///
+>      age_death naccint A_score B_score C_score braak_stage tdp_n
+
+. save data/npm.dta, replace
+file data/npm.dta saved
+
+. 
+. * cohort checks on the neuropathology file
+. count
+  8,565
+
+. local with_np = r(N)
+
+. count if n_assessed == 4
+  3,391
+
+. local classifiable = r(N)
+
+. count if n_assessed == 4 & p_TDP == 1
+  1,631
+
+. local tdp_n = r(N)
+
+. count if n_assessed == 4 & FTLD_TDP == 1
+  326
+
+. local ftdp_n = r(N)
+
+. count if n_assessed == 4 & !missing(FTLD_TDP)
+  3,385
+
+. local ftdp_N = r(N)
+
+. count if n_assessed == 4 & FTLD_TDP == 0 & !missing(LATE_stage)
+  2,736
+
+. local late_N = r(N)
+
+. count if n_assessed == 4 & FTLD_TDP == 0 & !missing(LATE_stage) & LATE_stage 
+> >= 1
+  976
+
+. local late_n = r(N)
+
+. 
+. * ── visits ─────────────────────────────────────────────────────────────────
+> ────────────────────────────
+. use data/raw_subset.dta, clear
+
+. merge m:1 NACCID using data/npm.dta, keep(match) nogenerate keepusing(NACCID)
+
+    Result                      Number of obs
+    -----------------------------------------
+    Not matched                             0
+    Matched                            38,293  
+    -----------------------------------------
+
+. keep if inlist(PACKET, "I", "F", "IT")
+(5,784 observations deleted)
+
+. vr cdr CDRSUM 0 18
+
+. gen double days = NACCFDYS
+
+. keep if !missing(cdr) & !missing(days) & days >= -0.05*365.25 & days <= 30*36
+> 5.25
+(0 observations deleted)
+
+. sort NACCID days NACCVNUM
+
+. by NACCID days: keep if _n == _N
+(0 observations deleted)
+
+. by NACCID: gen nvis_days = _N
+
+. keep if nvis_days >= 2
+(2,149 observations deleted)
+
+. sort NACCID days
+
+. by NACCID: gen double d0 = days[1]
+
+. foreach v in NACCAGE EDUC SEX NACCNE4S {
+  2.     by NACCID: gen double b_`v' = `v'[1]
+  3. }
+
+. gen double age_base = b_NACCAGE if inrange(b_NACCAGE, 18, 120)
+
+. gen double educ_yrs = b_EDUC if inrange(b_EDUC, 0, 36)
+(176 missing values generated)
+
+. gen double female = cond(b_SEX == 1, 0, cond(b_SEX == 2, 1, .))
+
+. gen double apoe4 = (b_NACCNE4S > 0) if inrange(b_NACCNE4S, 0, 2)
+(1,525 missing values generated)
+
+. gen double years = (days - d0) / 365.25
+
+. merge m:1 NACCID using data/npm.dta, keep(match) nogenerate
+
+    Result                      Number of obs
+    -----------------------------------------
+    Not matched                             0
+    Matched                            30,360  
+    -----------------------------------------
+
+. gen primary = n_assessed == 4 & !missing(age_base, educ_yrs, female, apoe4)
+
+. bysort NACCID (days): gen first = _n == 1
+
+. summarize age_base if primary & first, meanonly
+
+. gen double age_c = age_base - r(mean)
+
+. summarize educ_yrs if primary & first, meanonly
+
+. gen double educ_c = educ_yrs - r(mean)
+(176 missing values generated)
+
+. gen double late_stage = cond(FTLD_TDP == 1, 0, cond(FTLD_TDP == 0, LATE_stage
+> , .))
+(16,356 missing values generated)
+
+. gen double count_abs = cond(missing(p_ADNC), 0, p_ADNC) + cond(missing(p_LBD)
+> , 0, p_LBD) + ///
+>     cond(missing(p_TDP), 0, p_TDP) + cond(missing(p_FTLDtau), 0, p_FTLDtau)
+
+. gen double count_orig = (braak_stage >= 3) + (LB_stage >= 1) + p_TDP + p_FTLD
+> tau if !missing(braak_stage, LB_stage)
+(15,250 missing values generated)
+
+. egen long pid = group(NACCID)
+
+. save data/visits_all.dta, replace
+file data/visits_all.dta saved
+
+. 
+. * primary-cohort checks
+. count if primary
+  14,423
+
+. local p_visits = r(N)
+
+. count if primary & first
+  2,594
+
+. local p_n = r(N)
+
+. quietly levelsof NACCADC if primary, local(ctr)
+
+. local centers : word count `ctr'
+
+. forvalues k = 0/4 {
+  2.     count if primary & first & copath_count == `k'
+  3.     local c`k' = r(N)
+  4. }
+  257
+  901
+  860
+  513
+  63
+
+. count if primary & first & copath_count >= 2
+  1,436
+
+. local ge2 = r(N)
+
+. tempname ch
+
+. postfile `ch' str30 item double value using results/Stata_cohort.dta, replace
+
+. foreach k in with_np classifiable p_n p_visits centers c0 c1 c2 c3 c4 tdp_n f
+> tdp_n ftdp_N late_N late_n ge2 {
+  2.     local lab `k'
+  3.     if "`k'" == "with_np" local lab with_neuropath
+  4.     if "`k'" == "p_n" local lab primary_participants
+  5.     if "`k'" == "p_visits" local lab primary_visits
+  6.     if inlist("`k'", "c0", "c1", "c2", "c3", "c4") local lab = "count_" + 
+> substr("`k'", 2, 1)
+  7.     if "`k'" == "tdp_n" local lab TDP_n
+  8.     if "`k'" == "ftdp_n" local lab FTLD_TDP_n
+  9.     if "`k'" == "ftdp_N" local lab FTLD_TDP_N
+ 10.     if "`k'" == "late_N" local lab LATE_N
+ 11.     if "`k'" == "late_n" local lab LATE_n
+ 12.     if "`k'" == "ge2" local lab ge2_primary
+ 13.     post `ch' ("`lab'") (``k'')
+ 14. }
+
+. postclose `ch'
+
+. preserve
+
+. use results/Stata_cohort.dta, clear
+
+. export delimited using results/Stata_cohort.csv, replace
+file results/Stata_cohort.csv saved
+
+. restore
+
+. preserve
+
+. keep if primary
+(15,937 observations deleted)
+
+. keep NACCID days
+
+. export delimited using results/Stata_primary_visits.csv, replace
+file results/Stata_primary_visits.csv saved
+
+. restore
+
+. 
+. * ── models ─────────────────────────────────────────────────────────────────
+> ────────────────────────────
+. tempname post
+
+. postfile `post' str40 item double(estimate lo hi p n obs) using results/Stata
+> _results.dta, replace
+
+. local COV c.age_c c.female c.educ_c c.apoe4
+
+. 
+. * fit: args = sample condition, rhs (factor-variable list), required vars, re
+> ml|ml
+. capture program drop fitm
+
+. program define fitm
+  1.     args cond rhs need method
+  2.     capture drop _use _nuniq
+  3.     gen _use = (`cond') & !missing(cdr, years, age_c, female, educ_c, apoe
+> 4 `need')
+  4.     bysort pid _use (years): gen _nuniq = sum(years != years[_n-1]) if _us
+> e
+  5.     bysort pid _use (_nuniq): replace _use = 0 if _nuniq[_N] < 2
+  6.     quietly mixed cdr c.years##(`rhs' c.age_c c.female c.educ_c c.apoe4) i
+> f _use || pid: years, cov(unstructured) `method' iterate(300)
+  7. end
+
+. capture program drop grab
+
+. program define grab
+  1.     args post key term
+  2.     local b = _b[`term']
+  3.     local s = _se[`term']
+  4.     post `post' ("`key'") (`b') (`b' - invnormal(0.975)*`s') (`b' + invnor
+> mal(0.975)*`s') (2*normal(-abs(`b'/`s'))) (el(e(N_g),1,1)) (e(N))
+  5. end
+
+. 
+. use data/visits_all.dta, clear
+
+. keep if primary
+(15,937 observations deleted)
+
+. save data/primary.dta, replace
+file data/primary.dta saved
+
+. 
+. fitm 1 "c.copath_count" ", copath_count" reml
+(0 real changes made)
+
+. grab `post' "m1|Intercept" _cons
+
+. grab `post' "m1|years" years
+
+. grab `post' "m1|copath_count" copath_count
+
+. grab `post' "m1|years:copath_count" c.years#c.copath_count
+
+. foreach v in age_c female educ_c apoe4 {
+  2.     grab `post' "m1|`v'" `v'
+  3. }
+
+. fitm 1 "ib0.copath_count" ", copath_count" reml
+(0 real changes made)
+
+. forvalues k = 1/4 {
+  2.     grab `post' "m2|`k'" c.years#`k'.copath_count
+  3. }
+
+. fitm 1 "c.p_ADNC c.p_TDP c.p_LBD c.p_FTLDtau" ", p_ADNC, p_TDP, p_LBD, p_FTLD
+> tau" reml
+(0 real changes made)
+
+. foreach v in p_ADNC p_TDP p_LBD p_FTLDtau {
+  2.     grab `post' "m3|`v'" `v'
+  3.     grab `post' "m3|years:`v'" c.years#c.`v'
+  4. }
+
+. local G c.ADNC c.LB_stage c.late_stage c.FTLD_TDP c.p_FTLDtau
+
+. fitm 1 "`G'" ", ADNC, LB_stage, late_stage, FTLD_TDP, p_FTLDtau" reml
+(1,692 missing values generated)
+(0 real changes made)
+
+. foreach v in ADNC LB_stage late_stage FTLD_TDP p_FTLDtau {
+  2.     grab `post' "m4|years:`v'" c.years#c.`v'
+  3. }
+
+. * Model 4 with stage categories (reference = stage 0) and joint Wald tests of
+>  each pathology's stage x time terms
+. local GC i.ADNC i.LB_stage i.late_stage c.FTLD_TDP c.p_FTLDtau
+
+. fitm 1 "`GC'" ", ADNC, LB_stage, late_stage, FTLD_TDP, p_FTLDtau" reml
+(1,692 missing values generated)
+(0 real changes made)
+
+. forvalues k = 1/3 {
+  2.     grab `post' "m4cat|ADNC`k'" c.years#`k'.ADNC
+  3.     grab `post' "m4cat|LB`k'" c.years#`k'.LB_stage
+  4.     grab `post' "m4cat|LATE`k'" c.years#`k'.late_stage
+  5. }
+
+. grab `post' "m4cat|FTLD_TDP" c.years#c.FTLD_TDP
+
+. grab `post' "m4cat|p_FTLDtau" c.years#c.p_FTLDtau
+
+. foreach v in ADNC LB_stage late_stage {
+  2.     quietly test c.years#1.`v' c.years#2.`v' c.years#3.`v'
+  3.     local lab = cond("`v'" == "ADNC", "ADNC", cond("`v'" == "LB_stage", "L
+> B", "LATE"))
+  4.     post `post' ("m4cat|wald_`lab'") (r(chi2)) (.) (.) (r(p)) (.) (.)
+  5. }
+
+. 
+. * ML comparison on a common sample
+. gen _common = !missing(p_ADNC, p_TDP, p_LBD, p_FTLDtau, ADNC, LB_stage, late_
+> stage, FTLD_TDP)
+
+. gen double late_bin = (late_stage >= 1) if !missing(late_stage)
+(1,692 missing values generated)
+
+. foreach m in count binary binsep graded cat {
+  2.     if "`m'" == "count"  local r c.copath_count
+  3.     if "`m'" == "binary" local r c.p_ADNC c.p_TDP c.p_LBD c.p_FTLDtau
+  4.     if "`m'" == "binsep" local r c.p_ADNC c.p_LBD c.late_bin c.FTLD_TDP c.
+> p_FTLDtau
+  5.     if "`m'" == "graded" local r `G'
+  6.     if "`m'" == "cat"    local r `GC'
+  7.     fitm "_common" "`r'" "" ml
+  8.     local ll_`m' = e(ll)
+  9.     quietly estat ic
+ 10.     matrix S = r(S)
+ 11.     local aic_`m' = S[1,5]
+ 12. }
+(1,692 missing values generated)
+(0 real changes made)
+(1,692 missing values generated)
+(0 real changes made)
+(1,692 missing values generated)
+(0 real changes made)
+(1,692 missing values generated)
+(0 real changes made)
+(1,692 missing values generated)
+(0 real changes made)
+
+. foreach m in count binary binsep cat {
+  2.     post `post' ("fit|dAIC_`m'") (`aic_`m'' - `aic_graded') (.) (.) (.) (.
+> ) (.)
+  3. }
+
+. post `post' ("fit|LR_cat_vs_linear") (2*(`ll_cat' - `ll_graded')) (.) (.) (.)
+>  (.) (.)
+
+. 
+. * LATE-NC by age at death (post hoc)
+. local LS c.LATE_stage c.ADNC c.LB_stage c.p_FTLDtau
+
+. fitm "FTLD_TDP == 0" "`LS'" ", LATE_stage, ADNC, LB_stage, p_FTLDtau" reml
+(2,513 missing values generated)
+(0 real changes made)
+
+. grab `post' "late|All ages" c.years#c.LATE_stage
+
+. fitm "FTLD_TDP == 0 & age_death < 80" "`LS'" ", LATE_stage, ADNC, LB_stage, p
+> _FTLDtau" reml
+(11,441 missing values generated)
+(0 real changes made)
+
+. grab `post' "late|lt80" c.years#c.LATE_stage
+
+. fitm "FTLD_TDP == 0 & age_death >= 80 & !missing(age_death)" "`LS'" ", LATE_s
+> tage, ADNC, LB_stage, p_FTLDtau" reml
+(5,495 missing values generated)
+(0 real changes made)
+
+. grab `post' "late|ge80" c.years#c.LATE_stage
+
+. fitm "FTLD_TDP == 0 & age_death >= 90 & !missing(age_death)" "`LS'" ", LATE_s
+> tage, ADNC, LB_stage, p_FTLDtau" reml
+(9,976 missing values generated)
+(0 real changes made)
+
+. grab `post' "late|ge90" c.years#c.LATE_stage
+
+. gen double old = (age_death >= 80) if !missing(age_death)
+
+. capture drop _use _nuniq
+
+. gen _use = FTLD_TDP == 0 & !missing(cdr, years, age_c, female, educ_c, apoe4,
+>  LATE_stage, ADNC, LB_stage, p_FTLDtau, old)
+
+. bysort pid _use (years): gen _nuniq = sum(years != years[_n-1]) if _use
+(2,513 missing values generated)
+
+. bysort pid _use (_nuniq): replace _use = 0 if _nuniq[_N] < 2
+(0 real changes made)
+
+. quietly mixed cdr c.years##c.LATE_stage##c.old c.years##(c.ADNC c.LB_stage c.
+> p_FTLDtau `COV') if _use || pid: years, cov(unstructured) reml
+
+. grab `post' "late|interaction" c.years#c.LATE_stage#c.old
+
+. 
+. * ABC components
+. local ADJ c.LB_stage c.late_stage c.FTLD_TDP c.p_FTLDtau
+
+. foreach v in A_score B_score C_score ADNC {
+  2.     fitm 1 "c.`v' `ADJ'" ", `v', LB_stage, late_stage, FTLD_TDP, p_FTLDtau
+> " reml
+  3.     grab `post' "abc|`v'" c.years#c.`v'
+  4. }
+(1,692 missing values generated)
+(0 real changes made)
+(1,814 missing values generated)
+(0 real changes made)
+(1,692 missing values generated)
+(0 real changes made)
+(1,692 missing values generated)
+(0 real changes made)
+
+. 
+. * sensitivity analyses
+. bysort pid: gen _nv = _N
+
+. bysort pid (years): gen double _fu = years[_N]
+
+. fitm "_nv >= 3" "c.copath_count" ", copath_count" reml
+(902 missing values generated)
+(0 real changes made)
+
+. grab `post' "sens|ge3visits" c.years#c.copath_count
+
+. fitm "_fu >= 5" "c.copath_count" ", copath_count" reml
+(4,548 missing values generated)
+(0 real changes made)
+
+. grab `post' "sens|ge5years" c.years#c.copath_count
+
+. fitm "tdp_n == 4" "c.copath_count" ", copath_count" reml
+(1,864 missing values generated)
+(0 real changes made)
+
+. grab `post' "sens|all_tdp_regions" c.years#c.copath_count
+
+. fitm "naccint <= 24" "c.copath_count" ", copath_count" reml
+(4,990 missing values generated)
+(0 real changes made)
+
+. grab `post' "sens|death_24m" c.years#c.copath_count
+
+. fitm 1 "c.count_orig" ", count_orig" reml
+(124 missing values generated)
+(0 real changes made)
+
+. grab `post' "sens|original_thresholds" c.years#c.count_orig
+
+. fitm 1 "c.copath_count c.CVD_any c.HS" ", copath_count, CVD_any, HS" reml
+(611 missing values generated)
+(0 real changes made)
+
+. grab `post' "sens|cvd_hs" c.years#c.copath_count
+
+. grab `post' "cvdhs|years:CVD_any" c.years#c.CVD_any
+
+. grab `post' "cvdhs|years:HS" c.years#c.HS
+
+. use data/visits_all.dta, clear
+
+. fitm 1 "c.count_abs" ", count_abs" reml
+(1,686 missing values generated)
+(0 real changes made)
+
+. grab `post' "sens|unassessed_absent" c.years#c.count_abs
+
+. 
+. * individual rates (original definition) and Spearman
+. use data/primary.dta, clear
+
+. sort pid years
+
+. by pid: gen double _dt = years[_N] - years[1]
+
+. by pid: gen double rate = (cdr[_N] - cdr[1]) / _dt if _dt > 0.5
+
+. by pid: keep if _n == 1
+(11,829 observations deleted)
+
+. forvalues k = 0/4 {
+  2.     summarize rate if copath_count == `k', meanonly
+  3.     post `post' ("rate|`k'") (r(mean)) (.) (.) (.) (.) (.)
+  4. }
+
+. spearman copath_count rate
+
+Number of observations =  2,594
+        Spearman's rho = 0.2199
+
+Test of H0: copath_count and rate are independent
+                  Prob = 0.0000
+
+. post `post' ("rate|spearman") (r(rho)) (.) (.) (.) (.) (.)
+
+. postclose `post'
+
+. 
+. use results/Stata_results.dta, clear
+
+. export delimited using results/Stata_results.csv, replace
+file results/Stata_results.csv saved
+
+. display "done: " _N " estimates; Stata " c(stata_version) " " c(edition_real)
+done: 68 estimates; Stata 18 MP
+
+. log close
+      name:  <unnamed>
+       log:  results/Stata_run.log
+  log type:  text
+ closed on:  24 Sep 2026, 20:12:28
+-------------------------------------------------------------------------------

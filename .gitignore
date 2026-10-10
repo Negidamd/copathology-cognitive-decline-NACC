@@ -1,0 +1,14 @@
+# participant-level files stay local (NACC data use agreement)
+data/
+tables/individual_rates.csv
+verify_R/results/*_primary_visits.csv
+verify_StataMP/results/*_primary_visits.csv
+verify_StataMP/data/
+*.dta
+*.csv.gz
+# clutter
+__pycache__/
+*.pyc
+.DS_Store
+figures/*.png
+verify_StataMP/*.log

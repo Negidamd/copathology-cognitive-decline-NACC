@@ -1,0 +1,35 @@
+engine,item,python,other,match
+R,with_neuropath,8565,8565,True
+R,classifiable,3391,3391,True
+R,primary_participants,2594,2594,True
+R,primary_visits,14423,14423,True
+R,centers,33,33,True
+R,count_0,257,257,True
+R,count_1,901,901,True
+R,count_2,860,860,True
+R,count_3,513,513,True
+R,count_4,63,63,True
+R,TDP_n,1631,1631,True
+R,FTLD_TDP_n,326,326,True
+R,FTLD_TDP_N,3385,3385,True
+R,LATE_N,2736,2736,True
+R,LATE_n,976,976,True
+R,ge2_primary,1436,1436,True
+R,participant-visit set identical,14423,14423,True
+StataMP,with_neuropath,8565,8565,True
+StataMP,classifiable,3391,3391,True
+StataMP,primary_participants,2594,2594,True
+StataMP,primary_visits,14423,14423,True
+StataMP,centers,33,33,True
+StataMP,count_0,257,257,True
+StataMP,count_1,901,901,True
+StataMP,count_2,860,860,True
+StataMP,count_3,513,513,True
+StataMP,count_4,63,63,True
+StataMP,TDP_n,1631,1631,True
+StataMP,FTLD_TDP_n,326,326,True
+StataMP,FTLD_TDP_N,3385,3385,True
+StataMP,LATE_N,2736,2736,True
+StataMP,LATE_n,976,976,True
+StataMP,ge2_primary,1436,1436,True
+StataMP,participant-visit set identical,14423,14423,True
